@@ -3,6 +3,7 @@
 #
 #   ./glm-run.sh 프롬프트.md            진짜 시킵니다 (z.ai 할당량이 나갑니다)
 #   ./glm-run.sh 프롬프트.md --dry-run  GLM 을 안 부르고 나머지 절차만 돌려봅니다
+#   ./glm-run.sh 프롬프트.md --env openrouter   ~/.config/glm/env.openrouter 로 다른 제공자를 부릅니다
 #
 # 지금 폴더에서 일합니다. 검사 목록은 같은 폴더의 glm-gates.txt 에 적습니다.
 #
@@ -21,9 +22,21 @@ ALLOWED=(Read Write Edit Glob Grep
 
 PROMPT="${1:-}"
 DRY=0
-[ "${2:-}" = "--dry-run" ] && DRY=1
 
 die() { echo "✗ $*" >&2; exit 1; }
+
+# --env 이름  →  ~/.config/glm/env.<이름> 을 쓴다. 같은 스크립트로 다른 제공자를 부른다.
+#               예) --env openrouter (무료 모델 라우터) · --env zai-flash (5시간 한도 걸렸을 때)
+#               키는 그 파일 안에만 있고 여기엔 없다.
+shift || true
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1 ;;
+    --env) shift; ENVFILE="$HOME/.config/glm/env.${1:-}" ;;
+    *) die "모르는 옵션: $1  (쓸 수 있는 것: --dry-run, --env 이름)" ;;
+  esac
+  shift
+done
 
 [ -n "$PROMPT" ] || die "프롬프트 파일을 주세요.  예: ./glm-run.sh prompts/01.md"
 [ -r "$PROMPT" ] || die "$PROMPT 를 읽을 수 없습니다."
@@ -72,6 +85,7 @@ if [ "$DRY" = 1 ]; then
   echo "(dry-run: GLM 호출 없음)" > "$RUNDIR/output.md"
 else
   ( . "$ENVFILE"
+    ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}" \
     ANTHROPIC_BASE_URL="$GLM_BASE_URL" \
     API_TIMEOUT_MS=3000000 \
     claude -p "$(cat "$PROMPT")" \
